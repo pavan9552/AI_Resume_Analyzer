@@ -334,24 +334,64 @@ export const usePuterStore = create<PuterStore>((set, get) => {
       return;
     }
 
-    return puter.ai.chat(
-      [
-        {
-          role: "user",
-          content: [
-            {
-              type: "file",
-              puter_path: path,
-            },
-            {
-              type: "text",
-              text: message,
-            },
-          ],
-        },
-      ],
-      { model: "claude-sonnet-4" }
-    ) as Promise<AIResponse | undefined>;
+    try {
+      // Try with claude-sonnet-4 first, then fallback to other models
+      const models = ["claude-sonnet-4", "claude-3-5-sonnet", "claude-3-sonnet", "gpt-4"];
+      
+      for (const model of models) {
+        try {
+          const result = await puter.ai.chat(
+            [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "file",
+                    puter_path: path,
+                  },
+                  {
+                    type: "text",
+                    text: message,
+                  },
+                ],
+              },
+            ],
+            { model }
+          );
+          
+          if (result && !(result as any).error) {
+            return result as AIResponse;
+          }
+        } catch (modelError) {
+          console.warn(`Model ${model} failed:`, modelError);
+          continue;
+        }
+      }
+      
+      // If all models fail, try without specifying a model (use default)
+      return puter.ai.chat(
+        [
+          {
+            role: "user",
+            content: [
+              {
+                type: "file",
+                puter_path: path,
+              },
+              {
+                type: "text",
+                text: message,
+              },
+            ],
+          },
+        ]
+      ) as Promise<AIResponse | undefined>;
+      
+    } catch (error) {
+      console.error("AI feedback error:", error);
+      setError(`AI analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return undefined;
+    }
   };
 
   const img2txt = async (image: string | File | Blob, testMode?: boolean) => {

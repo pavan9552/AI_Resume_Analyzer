@@ -76,7 +76,19 @@ const Upload = () => {
       prepareInstructions({ jobTitle, jobDescription })
     );
 
-    if (!feedback) return setStatusText("Error: Failed to Analyze Resume");
+    if (!feedback) {
+      setStatusText("Error: Failed to Analyze Resume - No AI model available");
+      setIsProcessing(false);
+      return;
+    }
+    
+    // Check if feedback indicates an error (check for common error patterns)
+    if (feedback && typeof feedback === 'object' && 'error' in feedback) {
+      setStatusText(`Error: ${(feedback as any).error}`);
+      setIsProcessing(false);
+      return;
+    }
+    
     console.log("Feedback:", feedback);
 
     const feedbackText =
@@ -86,11 +98,17 @@ const Upload = () => {
 
     console.log("Feedback Text:", feedbackText);
 
-    data.feedback = JSON.parse(feedbackText);
-    await kv.set(`resume:${uuid}`, JSON.stringify(data));
-    setStatusText("Analysis Complete,redirecting...");
-    console.log(data);
-    navigate(`/resume/${uuid}`);
+    try {
+      data.feedback = JSON.parse(feedbackText);
+      await kv.set(`resume:${uuid}`, JSON.stringify(data));
+      setStatusText("Analysis Complete,redirecting...");
+      console.log(data);
+      navigate(`/resume/${uuid}`);
+    } catch (parseError) {
+      console.error("Failed to parse AI feedback:", parseError);
+      setStatusText("Error: Failed to parse AI response");
+      setIsProcessing(false);
+    }
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
